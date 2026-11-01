@@ -1,0 +1,90 @@
+# CI for kestrel: correctness, sanitizers, bench smoke.
+#
+# NOTE (honest labeling): this workflow was AUTHORED in a sandbox without a
+# GitHub runner available, so it has never been executed here. It mirrors the
+# exact preset commands that WERE verified locally (cmake --preset X &&
+# cmake --build --preset X && ctest --preset X). Treat the first CI run as
+# its own verification pass and fix accordingly.
+name: kestrel-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  correctness:
+    name: build + test (${{ matrix.preset }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [debug, release]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-14 ninja-build
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+      - name: Configure (${{ matrix.preset }})
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  sanitizers:
+    name: sanitizers (${{ matrix.preset }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [asan, ubsan, tsan]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-14 ninja-build
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+      - name: Configure (${{ matrix.preset }})
+        run: cmake --preset ${{ matrix.preset }}
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+      - name: Test
+        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+
+  bench-smoke:
+    name: benchmark smoke (quick mode, no regression gate)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y g++-14 ninja-build
+          echo "CC=gcc-14" >> "$GITHUB_ENV"
+          echo "CXX=g++-14" >> "$GITHUB_ENV"
+      - name: Configure (bench)
+        run: cmake --preset bench
+      - name: Build
+        run: cmake --build --preset bench
+      - name: Smoke run (quick)
+        run: |
+          ./build/bench/bench/kestrel_bench_engine --quick --label ci-smoke \
+            --out build/bench/bench/results/ci-smoke
+          python3 scripts/analyze_bench.py \
+            build/bench/bench/results/ci-smoke/results.json -o smoke-report.md
+      - name: Upload smoke report
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-smoke
+          path: |
+            smoke-report.md
+            build/bench/bench/results/ci-smoke/results.json
+      # Latency regression thresholds are intentionally NOT enforced here:
+      # shared runners are not a controlled environment (docs/benchmarks/
+      # report.md). The smoke run only proves the harness executes.
