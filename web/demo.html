@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kestrel — demo console (recorded engine session)</title>
+<style>
+  :root {
+    --bg: #0b0f14; --panel: #111823; --panel2: #0e141d; --line: #1d2937;
+    --text: #c9d6e3; --dim: #64798f; --accent: #4cc2ff; --bid: #2fd07a;
+    --ask: #ff5c6c; --warn: #ffb02e; --mono: ui-monospace, "JetBrains Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body { background: var(--bg); color: var(--text); font: 13px/1.45 var(--mono); }
+  header { display: flex; align-items: center; gap: 14px; padding: 10px 16px;
+           border-bottom: 1px solid var(--line); background: var(--panel2); }
+  header h1 { font-size: 15px; color: var(--accent); font-weight: 600; letter-spacing: .5px; }
+  header .tag { color: var(--dim); font-size: 11px; }
+  .banner { display: none; background: #3a1218; color: var(--ask); padding: 6px 16px;
+            font-weight: 600; border-bottom: 1px solid #5c1e26; }
+  main { display: grid; grid-template-columns: 320px 1fr 340px; gap: 12px; padding: 12px 16px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; }
+  .panel h2 { font-size: 11px; letter-spacing: 1px; color: var(--dim); text-transform: uppercase;
+              padding: 8px 12px; border-bottom: 1px solid var(--line); }
+  .panel .body { padding: 10px 12px; }
+  /* book */
+  .row { display: grid; grid-template-columns: 70px 1fr 70px; gap: 6px; padding: 1px 0; }
+  .row .px { text-align: right; }
+  .row .qty { position: relative; text-align: right; min-height: 14px; }
+  .row .qty i { position: absolute; inset: 0; opacity: .25; }
+  .bid .px { color: var(--bid); } .bid .qty i { background: var(--bid); }
+  .ask .px { color: var(--ask); } .ask .qty i { background: var(--ask); }
+  .spread { text-align: center; color: var(--dim); font-size: 11px; padding: 4px 0; }
+  /* stats */
+  .kv { display: flex; justify-content: space-between; padding: 2px 0; }
+  .kv b { font-weight: 600; color: #fff; }
+  .pos-long { color: var(--bid); } .pos-short { color: var(--ask); }
+  .pnl-pos { color: var(--bid); } .pnl-neg { color: var(--ask); }
+  /* orders table */
+  table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  th { color: var(--dim); text-align: right; font-weight: 500; padding: 2px 6px;
+       border-bottom: 1px solid var(--line); }
+  td { text-align: right; padding: 2px 6px; border-bottom: 1px solid #16202c; }
+  th:first-child, td:first-child { text-align: left; }
+  .controls { display: flex; align-items: center; gap: 8px; padding: 8px 16px;
+              border-top: 1px solid var(--line); background: var(--panel2); }
+  button { background: #1a2634; color: var(--text); border: 1px solid var(--line);
+           border-radius: 4px; padding: 5px 12px; cursor: pointer; font: inherit; }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary { background: #123a52; border-color: #1e5b80; color: var(--accent); }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
+  select { background: #1a2634; color: var(--text); border: 1px solid var(--line);
+           border-radius: 4px; padding: 4px; font: inherit; }
+  canvas { width: 100%; display: block; }
+  .note { color: var(--dim); font-size: 11px; padding: 8px 12px; border-top: 1px solid var(--line); }
+  .latbar { height: 8px; background: #16202c; border-radius: 3px; overflow: hidden; margin: 3px 0 8px; }
+  .latbar i { display: block; height: 100%; background: linear-gradient(90deg, var(--bid), var(--warn), var(--ask)); }
+</style>
+</head>
+<body>
+<header>
+  <h1>KESTREL</h1>
+  <span class="tag">demo console — RECORDED engine session (not live) · schema kestrel.demo/1</span>
+  <span class="tag" id="status">loading…</span>
+</header>
+<div class="banner" id="killbanner">⚠ KILL SWITCH ENGAGED — new exposure blocked at this event boundary</div>
+<main>
+  <section class="panel">
+    <h2>Order book — instrument 0</h2>
+    <div class="body">
+      <div id="asks"></div>
+      <div class="spread" id="spread">—</div>
+      <div id="bids"></div>
+    </div>
+    <div class="note">Mirrored from the engine feed handler; depth bars scaled per side. Stale-quote markers = our resting orders.</div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h2>Mid price trail</h2>
+      <div class="body"><canvas id="trail" height="120"></canvas></div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Open orders (engine OMS projection)</h2>
+      <div class="body" style="max-height:220px;overflow:auto">
+        <table><thead><tr><th>id</th><th>side</th><th>price</th><th>qty</th><th>filled</th><th>state</th></tr></thead>
+        <tbody id="orders"></tbody></table>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Session counters</h2>
+      <div class="body" id="counters"></div>
+    </div>
+  </section>
+
+  <section>
+    <div class="panel">
+      <h2>Position / PnL (cold-path projection)</h2>
+      <div class="body" id="pospanel"></div>
+      <div class="note">PnL = signed cash flow + position × mark mid (average-cost approximation; demo semantics).</div>
+    </div>
+    <div class="panel" style="margin-top:12px">
+      <h2>Measured latency (bundled benchmark, not per-event)</h2>
+      <div class="body" id="latpanel"></div>
+      <div class="note">From <b>bench/results/full-1919</b> on this exact build & host: software feed-to-order, order-producing events, minimal instrumentation. Per-event latency is intentionally NOT journaled (hot-path observer cost, ADR in docs/benchmarks/report.md).</div>
+    </div>
+  </section>
+</main>
+<div class="controls">
+  <button id="play" class="primary">▶ play</button>
+  <button id="step">step ▸</button>
+  <button id="back">◂ back</button>
+  <select id="speed">
+    <option value="8">8x</option><option value="4" selected>4x</option>
+    <option value="1">1x</option><option value="0.5">0.5x</option>
+  </select>
+  <input type="range" id="scrub" min="0" max="0" value="0">
+  <span id="poslabel" class="tag" style="min-width:130px;text-align:right">0 / 0</span>
+</div>
+<script>
+"use strict";
+const BENCH = {p50: 387, p90: 456, p99: 528, p999: 627, unit: "ns",
+               label: "t2t minimal (no journal), n=4525"};
+const CAP = 200; // max_position from the demo engine config
+let snaps = [], idx = 0, playing = false, timer = null;
+
+function fmt(v, d=0) { return Number(v).toLocaleString("en-US", {maximumFractionDigits: d}); }
+function cls(v) { return v > 0 ? "pos-long" : v < 0 ? "pos-short" : ""; }
+
+function ladder(el, levels, side) {
+  const maxq = Math.max(1, ...levels.map(l => l[1]));
+  el.innerHTML = levels.map(([p, q]) => `
+    <div class="row ${side}">
+      <span class="px">${fmt(p)}</span>
+      <span class="qty"><i style="width:${(100*q/maxq).toFixed(1)}%"></i></span>
+      <span class="qty">${fmt(q)}</span>
+    </div>`).join("");
+}
+
+function render() {
+  const s = snaps[idx];
+  if (!s) return;
+  ladder(document.getElementById("asks"), [...s.asks].reverse(), "ask");
+  ladder(document.getElementById("bids"), s.bids, "bid");
+  document.getElementById("spread").textContent =
+    s.bids.length && s.asks.length ? `spread ${(s.asks[0][0]-s.bids[0][0])} ticks` : "one-sided";
+  document.getElementById("killbanner").style.display = s.kill ? "block" : "none";
+
+  document.getElementById("orders").innerHTML = s.orders.map(o => `
+    <tr><td>${o.id}</td><td style="color:${o.side==="B"?"var(--bid)":"var(--ask)"}">${o.side}</td>
+    <td>${fmt(o.px)}</td><td>${fmt(o.qty)}</td><td>${fmt(o.filled)}</td><td>${o.state}</td></tr>`).join("")
+    || `<tr><td colspan="6" style="color:var(--dim)">no open orders at this event</td></tr>`;
+
+  document.getElementById("counters").innerHTML = `
+    <div class="kv"><span>events replayed</span><b>${fmt(s.event)}</b></div>
+    <div class="kv"><span>orders submitted</span><b>${fmt(s.counts.orders)}</b></div>
+    <div class="kv"><span>fills</span><b>${fmt(s.counts.fills)}</b></div>
+    <div class="kv"><span>declines</span><b>${fmt(s.counts.declines)}</b></div>`;
+
+  const pnlc = s.pnl >= 0 ? "pnl-pos" : "pnl-neg";
+  document.getElementById("pospanel").innerHTML = `
+    <div class="kv"><span>position</span><b class="${cls(s.pos)}">${s.pos > 0 ? "+" : ""}${fmt(s.pos)} lots</b></div>
+    <div class="kv"><span>risk usage (pos cap ${CAP})</span><b>${Math.min(100, Math.abs(s.pos)/CAP*100).toFixed(0)}%</b></div>
+    <div class="latbar"><i style="width:${Math.min(100, Math.abs(s.pos)/CAP*100).toFixed(1)}%"></i></div>
+    <div class="kv"><span>cash flow</span><b>${fmt(s.cash)}</b></div>
+    <div class="kv"><span>mark mid</span><b>${fmt(s.mid)}</b></div>
+    <div class="kv"><span>unrealized PnL</span><b class="${pnlc}">${fmt(s.pnl)}</b></div>`;
+
+  drawTrail();
+  document.getElementById("scrub").value = idx;
+  document.getElementById("poslabel").textContent = `${idx+1} / ${snaps.length}`;
+}
+
+function drawTrail() {
+  const cv = document.getElementById("trail");
+  const w = cv.clientWidth, h = 120;
+  cv.width = w * devicePixelRatio; cv.height = h * devicePixelRatio;
+  const g = cv.getContext("2d");
+  g.scale(devicePixelRatio, devicePixelRatio);
+  g.clearRect(0, 0, w, h);
+  const pts = snaps.slice(0, idx + 1);
+  if (pts.length < 2) return;
+  const mids = pts.map(s => s.mid).filter(m => m > 0);
+  const lo = Math.min(...mids), hi = Math.max(...mids), pad = 4;
+  const y = m => h - pad - (m - lo) / Math.max(1, hi - lo) * (h - 2*pad);
+  g.strokeStyle = "#1d2937";
+  for (let i = 1; i < 4; ++i) { g.beginPath(); g.moveTo(0, h*i/4); g.lineTo(w, h*i/4); g.stroke(); }
+  g.strokeStyle = "#4cc2ff"; g.lineWidth = 1.4; g.beginPath();
+  pts.forEach((s, i) => { const X = i/(pts.length-1)*w, Y = y(s.mid);
+                          i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+  g.stroke();
+  // position shading: green above zero, red below
+  pts.forEach((s, i) => { if (!s.pos) return;
+    const X = i/(pts.length-1)*w;
+    g.fillStyle = s.pos > 0 ? "rgba(47,208,122,.08)" : "rgba(255,92,108,.08)";
+    g.fillRect(X, 0, Math.max(1, w/pts.length), h); });
+}
+
+const LAT = document.getElementById("latpanel");
+LAT.innerHTML = `
+  <div class="kv"><span>${BENCH.label}</span><b></b></div>
+  ${["p50","p90","p99","p999"].map(p => `
+    <div class="kv"><span>${p}</span><b>${BENCH[p]} ns</b></div>
+    <div class="latbar"><i style="width:${Math.min(100, BENCH[p]/1000)}%"></i></div>`).join("")}
+  <div class="kv"><span>journal on (p50)</span><b>1.02 us</b></div>`;
+
+function tick() {
+  if (idx >= snaps.length - 1) { pause(); return; }
+  idx++;
+  render();
+}
+function play() {
+  if (playing || !snaps.length) return;
+  playing = true;
+  document.getElementById("play").textContent = "❚❚ pause";
+  const speed = parseFloat(document.getElementById("speed").value);
+  const span = snaps[Math.min(snaps.length-1, idx+1)].ts_ns - snaps[idx].ts_ns || 250000;
+  const interval = Math.max(16, span / (1000 * speed));
+  timer = setInterval(tick, interval);
+}
+function pause() {
+  playing = false;
+  clearInterval(timer);
+  document.getElementById("play").textContent = "▶ play";
+}
+
+document.getElementById("play").onclick = () => playing ? pause() : play();
+document.getElementById("step").onclick = () => { pause(); if (idx < snaps.length-1) { idx++; render(); } };
+document.getElementById("back").onclick = () => { pause(); if (idx > 0) { idx--; render(); } };
+document.getElementById("scrub").oninput = e => { pause(); idx = +e.target.value; render(); };
+window.addEventListener("resize", render);
+
+fetch("demo-data/demo.jsonl")
+  .then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+  .then(t => {
+    snaps = t.trim().split("\n").map(JSON.parse);
+    document.getElementById("scrub").max = snaps.length - 1;
+    document.getElementById("status").textContent =
+      `${snaps.length} conflated snapshots loaded`;
+    render();
+    play();
+  })
+  .catch(e => {
+    document.getElementById("status").textContent = "failed to load demo-data/demo.jsonl: " + e;
+  });
+</script>
+</body>
+</html>
