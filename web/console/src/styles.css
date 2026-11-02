@@ -1,0 +1,391 @@
+/* Kestrel console — dark theme ported from web/demo.html (same palette/layout spirit). */
+
+:root {
+  --bg: #0b0f14;
+  --panel: #111823;
+  --panel2: #0e141d;
+  --line: #1d2937;
+  --text: #c9d6e3;
+  --dim: #64798f;
+  --accent: #4cc2ff;
+  --bid: #2fd07a;
+  --ask: #ff5c6c;
+  --warn: #ffb02e;
+  --mono: ui-monospace, 'JetBrains Mono', Menlo, monospace;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: 13px/1.45 var(--mono);
+}
+
+.app {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ---------- header ---------- */
+
+.app > header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--line);
+  background: var(--panel2);
+  flex-wrap: wrap;
+}
+
+.app > header h1 {
+  font-size: 15px;
+  color: var(--accent);
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.tag {
+  color: var(--dim);
+  font-size: 11px;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 11px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+}
+
+.badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--dim);
+  flex: none;
+}
+
+.badge.ok .dot {
+  background: var(--bid);
+}
+
+.badge.err .dot {
+  background: var(--ask);
+}
+
+.badge.warn .dot {
+  background: var(--warn);
+}
+
+/* ---------- kill switch banner ---------- */
+
+.banner {
+  background: #3a1218;
+  color: var(--ask);
+  padding: 6px 16px;
+  font-weight: 600;
+  border-bottom: 1px solid #5c1e26;
+}
+
+/* ---------- layout ---------- */
+
+main.grid {
+  display: grid;
+  grid-template-columns: 320px 1fr 340px;
+  gap: 12px;
+  padding: 12px 16px;
+  flex: 1;
+  align-items: start;
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  main.grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------- panels ---------- */
+
+.panel {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+
+.panel h2 {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--dim);
+  text-transform: uppercase;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  font-weight: 600;
+}
+
+.body {
+  padding: 10px 12px;
+}
+
+.note {
+  color: var(--dim);
+  font-size: 11px;
+  padding: 8px 12px;
+  border-top: 1px solid var(--line);
+}
+
+.note b {
+  color: var(--text);
+}
+
+.placeholder {
+  color: var(--dim);
+  font-size: 12px;
+  padding: 8px 0;
+}
+
+/* ---------- order book ladder ---------- */
+
+.row {
+  display: grid;
+  grid-template-columns: 70px 1fr 70px;
+  gap: 6px;
+  padding: 1px 0;
+}
+
+.row .px {
+  text-align: right;
+}
+
+.row .qty {
+  position: relative;
+  text-align: right;
+  min-height: 14px;
+}
+
+.row .qty i {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  opacity: 0.25;
+}
+
+.bid .px {
+  color: var(--bid);
+}
+
+.bid .qty i {
+  background: var(--bid);
+}
+
+.ask .px {
+  color: var(--ask);
+}
+
+.ask .qty i {
+  background: var(--ask);
+}
+
+/* best bid (top bid row) and best ask (bottom ask row) highlighted */
+.row.best {
+  background: rgba(76, 194, 255, 0.05);
+  border-radius: 2px;
+}
+
+.row.best .px {
+  font-weight: 700;
+}
+
+.spread {
+  text-align: center;
+  color: var(--dim);
+  font-size: 11px;
+  padding: 4px 0;
+}
+
+/* ---------- stats / key-value ---------- */
+
+.kv {
+  display: flex;
+  justify-content: space-between;
+  padding: 2px 0;
+  gap: 12px;
+}
+
+.kv b {
+  font-weight: 600;
+  color: #fff;
+}
+
+.pos-long {
+  color: var(--bid);
+}
+
+.pos-short {
+  color: var(--ask);
+}
+
+.pnl-pos {
+  color: var(--bid);
+}
+
+.pnl-neg {
+  color: var(--ask);
+}
+
+.latbar {
+  height: 8px;
+  background: #16202c;
+  border-radius: 3px;
+  overflow: hidden;
+  margin: 3px 0 8px;
+}
+
+.latbar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--bid), var(--warn), var(--ask));
+}
+
+/* ---------- orders table ---------- */
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+th {
+  color: var(--dim);
+  text-align: right;
+  font-weight: 500;
+  padding: 2px 6px;
+  border-bottom: 1px solid var(--line);
+}
+
+td {
+  text-align: right;
+  padding: 2px 6px;
+  border-bottom: 1px solid #16202c;
+}
+
+th:first-child,
+td:first-child {
+  text-align: left;
+}
+
+.scroll {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+/* ---------- trail ---------- */
+
+.trail-wrap {
+  min-height: 120px;
+}
+
+.trail-svg {
+  display: block;
+}
+
+/* ---------- playback controls ---------- */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  border-top: 1px solid var(--line);
+  background: var(--panel2);
+  flex-wrap: wrap;
+  margin-top: auto;
+}
+
+button {
+  background: #1a2634;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 5px 12px;
+  cursor: pointer;
+  font: inherit;
+  min-height: 28px;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+button.primary {
+  background: #123a52;
+  border-color: #1e5b80;
+  color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+select:focus-visible,
+input[type='range']:focus-visible {
+  outline: 1px solid var(--accent);
+  outline-offset: 1px;
+}
+
+input[type='range'] {
+  flex: 1;
+  accent-color: var(--accent);
+  min-width: 120px;
+}
+
+select {
+  background: #1a2634;
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 4px;
+  font: inherit;
+}
+
+/* ---------- scrollbars ---------- */
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1d2937;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
