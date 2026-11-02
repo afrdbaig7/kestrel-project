@@ -1,0 +1,15 @@
+[package]
+name = "kestrel-gateway"
+version = "0.1.0"
+edition = "2021"
+description = "Kestrel cold-path WebSocket gateway (ADR-0007): streams the C++-produced JSONL projection (schema kestrel.demo/1) to console clients with playback control, and serves the built React console."
+
+[dependencies]
+axum = { version = "0.8", features = ["ws"] }
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "io-util", "fs", "sync"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tower-http = { version = "0.6", features = ["fs"] }
+
+[profile.release]
+opt-level = 2
